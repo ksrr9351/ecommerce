@@ -11,6 +11,7 @@ const LimitedOffer: React.FC<LimitedOfferProps> = ({ updateCartCount }) => {
   const [cartQuantities, setCartQuantities] = useState<{ [key: number]: number }>({});
   const [addedToCart, setAddedToCart] = useState<{ [key: number]: boolean }>({});
 
+  // Load cart data from sessionStorage on component mount
   useEffect(() => {
     const existingCart = JSON.parse(sessionStorage.getItem('cart') || '[]');
     
