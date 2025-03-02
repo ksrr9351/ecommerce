@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Routes, Route } from 'react-router-dom'; // Import Routes and Route
+import React, { useState, useEffect } from 'react';
+import { Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import CategorySelector from './components/CategorySelector';
@@ -9,11 +9,17 @@ import LimitedOffer from './components/LimitedOffer';
 import NewArrivals from './components/NewArrivals';
 import PopularItems from './components/PopularItems';
 import Footer from './components/Footer';
-import ShoppingCart from './components/ShoppingCart'; // Import ShoppingCart
+import ShoppingCart from './components/ShoppingCart';
 import './App.css';
 
 const App: React.FC = () => {
-  const [cartCount, setCartCount] = useState(0);  // State for the cart count
+  const [cartCount, setCartCount] = useState(0);
+
+  // Initialize cart count from sessionStorage on app mount
+  useEffect(() => {
+    const existingCart = JSON.parse(sessionStorage.getItem('cart') || '[]');
+    setCartCount(existingCart.length);
+  }, []);
 
   // Function to update the cart count
   const updateCartCount = (count: number) => {
@@ -22,18 +28,15 @@ const App: React.FC = () => {
 
   return (
     <div className="app">
-      <Navbar cartCount={cartCount} /> {/* Pass cartCount to Navbar */}
+      <Navbar cartCount={cartCount} />
 
       <Routes>
-        {/* Define the route for the ShoppingCart page */}
         <Route path="/ShoppingCart" element={<ShoppingCart />} />
         
-        {/* Default route to show homepage components */}
         <Route
           path="/"
           element={
             <>
-              {/* Only these components will be shown on the homepage */}
               <Hero />
               <CategorySelector />
               <CollectionHighlight />
@@ -48,7 +51,6 @@ const App: React.FC = () => {
         />
       </Routes>
 
-      {/* Footer will be present on all pages */}
       <Footer />
     </div>
   );

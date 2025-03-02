@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import ProductItem from './ProductItem';
+import './ShoppingCart.css';
 
 interface Product {
-    id: string;
+    id: string | number;
     title: string;
     image: string;
     price: number;
@@ -10,92 +11,150 @@ interface Product {
 }
 
 const ShoppingCart: React.FC = () => {
-    const [products, setProducts] = useState<Product[]>([]); // Here, we store the products in cart.
-    const [couponCode, setCouponCode] = useState('');
+    const [cartItems, setCartItems] = useState<Product[]>([]);
+    const [subtotal, setSubtotal] = useState<number>(0);
+    const [shipping, setShipping] = useState<number>(0);
 
-    const handleRemove = (id: string) => {
-        setProducts(products.filter(product => product.id !== id));
+    useEffect(() => {
+        // Load cart from sessionStorage
+        const loadCart = () => {
+            const cartData = sessionStorage.getItem('cart');
+            if (cartData) {
+                try {
+                    // Parse the cart data
+                    const parsedCart = JSON.parse(cartData);
+                    
+                    // Ensure each item has a quantity property
+                    const itemsWithQuantity = parsedCart.map((item: any) => ({
+                        ...item,
+                        quantity: item.quantity || 1 // Default to 1 if quantity is not specified
+                    }));
+                    
+                    setCartItems(itemsWithQuantity);
+                } catch (error) {
+                    console.error('Error parsing cart data:', error);
+                    setCartItems([]);
+                }
+            }
+        };
+
+        loadCart();
+    }, []);
+
+    useEffect(() => {
+        // Calculate subtotal whenever cart items change
+        const newSubtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        setSubtotal(newSubtotal);
+        
+        // Calculate shipping (free if subtotal > 100, otherwise $10)
+        setShipping(newSubtotal > 100 ? 0 : 10);
+        
+        // Update sessionStorage with the updated cart
+        if (cartItems.length > 0) {
+            sessionStorage.setItem('cart', JSON.stringify(cartItems));
+        } else {
+            sessionStorage.removeItem('cart');
+        }
+    }, [cartItems]);
+
+    const handleRemoveItem = (id: string | number) => {
+        setCartItems(prevItems => prevItems.filter(item => item.id !== id));
     };
 
-    const handleQuantityChange = (id: string, quantity: number) => {
-        setProducts(
-            products.map(product => 
-                product.id === id ? { ...product, quantity } : product
+    const handleQuantityChange = (id: string | number, newQuantity: number) => {
+        setCartItems(prevItems => 
+            prevItems.map(item => 
+                item.id === id ? { ...item, quantity: newQuantity } : item
             )
         );
     };
 
-    const calculateTotal = () => {
-        return products.reduce((sum, product) => sum + (product.price * product.quantity), 0);
-    };
+    if (cartItems.length === 0) {
+        return (
+            <div className="shopping-cart-container">
+                <h2 className="cart-title">Your Shopping Cart</h2>
+                <div className="cart-content">
+                    <div className="empty-cart">
+                        <div className="empty-cart-icon">🛒</div>
+                        <p className="empty-cart-message">Your cart is empty</p>
+                        <a href="/" className="return-to-shop">Continue Shopping</a>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
-        <div className="shopping-cart">
-            <div className="containered">
-                <h1 className="page-titles">Shopping Cart</h1>
-
-                {/* Steps */}
-                <div className="progress-steps">
-                    <div className="step active">
-                        <div className="step-number">1</div>
-                        <div className="step-title">Shopping Cart</div>
-                        <div className="step-line"></div>
-                    </div>
-                    <div className="step">
-                        <div className="step-number">2</div>
-                        <div className="step-title">Checkout</div>
-                        <div className="step-line"></div>
-                    </div>
-                    <div className="step">
-                        <div className="step-number">3</div>
-                        <div className="step-title">Completed</div>
-                    </div>
-                </div>
-
-                {/* Cart Table */}
-                <div className="cart-table">
-                    <div className="cart-header">
-                        <div className="header-product">Product</div>
-                        <div className="header-quantity">Quantity</div>
-                        <div className="header-price">Price</div>
-                        <div className="header-total">Total</div>
-                        <div className="header-action"></div>
-                    </div>
-
-                    <div className="cart-items">
-                        {products.map(product => (
-                            <ProductItem 
-                                key={product.id} 
-                                product={product} 
-                                onRemove={handleRemove}
-                                onQuantityChange={handleQuantityChange}
+        <div className="shopping-cart-container">
+            <h2 className="cart-title">Your Shopping Cart <span className="cart-badge">{cartItems.reduce((total, item) => total + item.quantity, 0)}</span></h2>
+            
+            <div className="cart-content">
+                {cartItems.map(item => (
+                    <div key={item.id} className="cart-item">
+                        <div className="item-image-container">
+                            <img 
+                                src={item.image} 
+                                alt={item.title} 
+                                className="item-image" 
                             />
-                        ))}
+                        </div>
+                        <div className="item-details">
+                            <h3 className="item-title">{item.title}</h3>
+                            <div className="quantity-control">
+                                <button 
+                                    className="quantity-btn"
+                                    onClick={() => handleQuantityChange(item.id, Math.max(1, item.quantity - 1))}
+                                >
+                                    -
+                                </button>
+                                <span className="quantity-value">{item.quantity}</span>
+                                <button 
+                                    className="quantity-btn"
+                                    onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
+                                >
+                                    +
+                                </button>
+                            </div>
+                        </div>
+                        <div className="item-price-container">
+                            <div className="item-unit-price">${item.price.toFixed(2)} each</div>
+                            <div className="item-total-price">${(item.price * item.quantity).toFixed(2)}</div>
+                        </div>
+                        <button 
+                            className="remove-item"
+                            onClick={() => handleRemoveItem(item.id)}
+                        >
+                            ×
+                        </button>
                     </div>
-                </div>
-
-                {/* Cart Footer */}
-                <div className="cart-footer">
-                    <div className="coupon-container">
-                        <input 
-                            type="text" 
-                            placeholder="Enter coupon code" 
-                            className="coupon-input"
-                            value={couponCode}
-                            onChange={(e) => setCouponCode(e.target.value)}
-                        />
-                        <button className="apply-coupon-button">Apply Code</button>
+                ))}
+                
+                <div className="cart-summary">
+                    <div className="summary-row">
+                        <span className="summary-label">Subtotal</span>
+                        <span className="subtotal-value">${subtotal.toFixed(2)}</span>
                     </div>
-                    <div className="cart-total">
+                    <div className="summary-row">
+                        <span className="summary-label">Shipping</span>
+                        <span className="shipping-value">
+                            {shipping === 0 ? 'Free' : `$${shipping.toFixed(2)}`}
+                        </span>
+                    </div>
+                    <div className="total-row">
                         <span className="total-label">Total</span>
-                        <span className="total-amount">${calculateTotal().toFixed(2)}</span>
+                        <span className="total-value">${(subtotal + shipping).toFixed(2)}</span>
                     </div>
-                </div>
-
-                {/* Cart Actions */}
-                <div className="cart-actions">
-                    <button className="continue-shopping-button">Continue Shopping</button>
-                    <button className="checkout-button">Checkout</button>
+                    
+                    <button className="checkout-button">
+                        Proceed to Checkout
+                    </button>
+                    
+                    <a href="/" className="continue-shopping">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M15 8H1M1 8L8 15M1 8L8 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                        Continue Shopping
+                    </a>
                 </div>
             </div>
         </div>

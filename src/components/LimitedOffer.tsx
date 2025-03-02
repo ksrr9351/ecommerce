@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Product } from '../models/Product';
 
 interface LimitedOfferProps {
@@ -9,15 +9,41 @@ const LimitedOffer: React.FC<LimitedOfferProps> = ({ updateCartCount }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [cartQuantities, setCartQuantities] = useState<{ [key: number]: number }>({});
-  const [addedToCart, setAddedToCart] = useState<{ [key: number]: boolean }>({}); // Track if product has been added to cart
+  const [addedToCart, setAddedToCart] = useState<{ [key: number]: boolean }>({});
+
+  // Memoize the function to get cart length to avoid unnecessary renders
+  const getCartLength = useCallback(() => {
+    const existingCart = JSON.parse(sessionStorage.getItem('cart') || '[]');
+    return existingCart.length;
+  }, []);
+
+  // Load cart data from sessionStorage on component mount
+  useEffect(() => {
+    const existingCart = JSON.parse(sessionStorage.getItem('cart') || '[]');
+    
+    // Initialize cart quantities and addedToCart state from sessionStorage
+    const initialQuantities: { [key: number]: number } = {};
+    const initialAddedToCart: { [key: number]: boolean } = {};
+    
+    // Count products by ID
+    existingCart.forEach((item: any) => {
+      if (item.id) {
+        initialQuantities[item.id] = (initialQuantities[item.id] || 0) + 1;
+        initialAddedToCart[item.id] = true;
+      }
+    });
+    
+    setCartQuantities(initialQuantities);
+    setAddedToCart(initialAddedToCart);
+  }, []);
 
   useEffect(() => {
     const loadProducts = async () => {
       try {
         const response = await fetch('https://fakestoreapi.com/products');
         const data = await response.json();
-        // Filter products that are on 'Limited Offer' (you can modify the filter condition as needed)
-        const limitedOffers = data.filter((product: any) => product.price < 50); // Example condition for limited offers
+        // Filter products that are on 'Limited Offer'
+        const limitedOffers = data.filter((product: any) => product.price < 50);
         
         // Limit the number of displayed products to 2
         const limitedItems = limitedOffers.slice(0, 2);
@@ -33,28 +59,82 @@ const LimitedOffer: React.FC<LimitedOfferProps> = ({ updateCartCount }) => {
     loadProducts();
   }, []);
 
+  const updateSessionStorage = (productId: number, quantityChange: number) => {
+    const product = products.find((p) => p.id === productId);
+    if (!product) return;
+    
+    // Get current cart
+    const existingCart = JSON.parse(sessionStorage.getItem('cart') || '[]');
+    
+    if (quantityChange > 0) {
+      // Add product to cart
+      const newItem = { 
+        id: product.id, 
+        title: product.title, 
+        price: product.price,
+        image: product.image
+      };
+      existingCart.push(newItem);
+    } else if (quantityChange < 0) {
+      // Remove one instance of the product from cart
+      const indexToRemove = existingCart.findIndex((item: any) => item.id === productId);
+      if (indexToRemove !== -1) {
+        existingCart.splice(indexToRemove, 1);
+      }
+    }
+    
+    // Save updated cart
+    sessionStorage.setItem('cart', JSON.stringify(existingCart));
+    
+    // Update global cart count (outside of render cycle)
+    updateCartCount(existingCart.length);
+  };
+
   const handleIncrease = (productId: number) => {
     setCartQuantities((prevQuantities) => {
-      const updatedQuantities = { ...prevQuantities, [productId]: (prevQuantities[productId] || 0) + 1 };
-      updateCartCount(Object.values(updatedQuantities).reduce((acc, curr) => acc + curr, 0)); // Update the total cart count
+      const updatedQuantities = { 
+        ...prevQuantities, 
+        [productId]: (prevQuantities[productId] || 0) + 1 
+      };
       return updatedQuantities;
     });
+    
+    // Update sessionStorage after state update
+    setTimeout(() => {
+      updateSessionStorage(productId, 1);
+    }, 0);
   };
 
   const handleDecrease = (productId: number) => {
     setCartQuantities((prevQuantities) => {
       if ((prevQuantities[productId] || 0) > 1) {
-        const updatedQuantities = { ...prevQuantities, [productId]: (prevQuantities[productId] || 0) - 1 };
-        updateCartCount(Object.values(updatedQuantities).reduce((acc, curr) => acc + curr, 0)); // Update the total cart count
+        const updatedQuantities = { 
+          ...prevQuantities, 
+          [productId]: (prevQuantities[productId] || 0) - 1 
+        };
+        
+        // Schedule update to happen after render is complete
+        setTimeout(() => {
+          updateSessionStorage(productId, -1);
+        }, 0);
+        
         return updatedQuantities;
       }
-      // If quantity reaches 0, remove the product from the cart and revert back to "Add to Cart" button
-      const updatedQuantities = { ...prevQuantities, [productId]: 0 };
+      
+      // If quantity reaches 0, remove the product from the cart
+      const updatedQuantities = { ...prevQuantities };
+      delete updatedQuantities[productId];
+      
       setAddedToCart((prev) => ({
         ...prev,
-        [productId]: false, // Reset addedToCart for this product to show the Add to Cart button again
+        [productId]: false, // Reset addedToCart for this product
       }));
-      updateCartCount(Object.values(updatedQuantities).reduce((acc, curr) => acc + curr, 0)); // Update the total cart count
+      
+      // Schedule update to happen after render is complete
+      setTimeout(() => {
+        updateSessionStorage(productId, -1);
+      }, 0);
+      
       return updatedQuantities;
     });
   };
@@ -69,25 +149,13 @@ const LimitedOffer: React.FC<LimitedOfferProps> = ({ updateCartCount }) => {
     // Initialize the cart quantity for that product
     setCartQuantities((prevQuantities) => ({
       ...prevQuantities,
-      [productId]: (prevQuantities[productId] || 0) + 1,
+      [productId]: 1,
     }));
-
-    // Get the product info
-    const product = products.find((product) => product.id === productId);
-
-    if (product) {
-      // Retrieve the cart from localStorage (if it exists)
-      const existingCart = JSON.parse(localStorage.getItem('cart') || '[]');
-
-      // Add the new product to the cart
-      const updatedCart = [...existingCart, { id: product.id, title: product.title, price: product.price }];
-
-      // Save the updated cart back to localStorage
-      localStorage.setItem('cart', JSON.stringify(updatedCart));
-
-      // Update the total cart count
-      updateCartCount(Object.values(cartQuantities).reduce((acc, curr) => acc + curr, 0) + 1); // Update the total cart count
-    }
+    
+    // Schedule update to happen after render is complete
+    setTimeout(() => {
+      updateSessionStorage(productId, 1);
+    }, 0);
   };
 
   return (

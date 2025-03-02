@@ -11,6 +11,7 @@ const FeaturedProducts: React.FC<FeaturedProductsProps> = ({ updateCartCount }) 
   const [cartQuantities, setCartQuantities] = useState<{ [key: number]: number }>({});
   const [addedToCart, setAddedToCart] = useState<{ [key: number]: boolean }>({});
 
+  // Load products and cart data on component mount
   useEffect(() => {
     const loadProducts = async () => {
       try {
@@ -19,6 +20,28 @@ const FeaturedProducts: React.FC<FeaturedProductsProps> = ({ updateCartCount }) 
         // Limit to only 8 products
         const limitedProducts = data.slice(0, 8); // Take only the first 8 products
         setProducts(limitedProducts);
+
+        // Load cart data from sessionStorage
+        const cartData = sessionStorage.getItem('cart');
+        if (cartData) {
+          const cartItems = JSON.parse(cartData);
+
+          // Initialize cart quantities and addedToCart states based on sessionStorage
+          const initialQuantities: { [key: number]: number } = {};
+          const initialAddedToCart: { [key: number]: boolean } = {};
+
+          cartItems.forEach((item: any) => {
+            initialQuantities[item.id] = item.quantity;
+            initialAddedToCart[item.id] = true;
+          });
+
+          setCartQuantities(initialQuantities);
+          setAddedToCart(initialAddedToCart);
+
+          // Update cart count
+          updateCartCount(cartItems.reduce((acc: number, item: any) => acc + item.quantity, 0));
+        }
+
         setLoading(false);
       } catch (error) {
         console.error('Error loading featured products:', error);
@@ -27,39 +50,99 @@ const FeaturedProducts: React.FC<FeaturedProductsProps> = ({ updateCartCount }) 
     };
 
     loadProducts();
-  }, []);
+  }, [updateCartCount]);
+
+  // Function to save the cart to sessionStorage
+  const saveCartToSessionStorage = (updatedCart: any[]) => {
+    sessionStorage.setItem('cart', JSON.stringify(updatedCart));
+  };
 
   // Add to cart handler
-  const handleAddToCart = (productId: number) => {
-    setAddedToCart((prev) => ({ ...prev, [productId]: true }));
+  const handleAddToCart = (product: Product) => {
+    setAddedToCart((prev) => ({ ...prev, [product.id]: true }));
     setCartQuantities((prev) => {
-      const newQuantities = { ...prev, [productId]: (prev[productId] || 0) + 1 };
-      updateCartCount(Object.values(newQuantities).reduce((sum, val) => sum + val, 0)); // Update total cart count
+      const newQuantities = { ...prev, [product.id]: (prev[product.id] || 0) + 1 };
+
+      // Update cart in sessionStorage
+      const currentCart = JSON.parse(sessionStorage.getItem('cart') || '[]');
+      const existingItemIndex = currentCart.findIndex((item: any) => item.id === product.id);
+
+      if (existingItemIndex !== -1) {
+        // If product already exists, increment quantity
+        currentCart[existingItemIndex].quantity += 1;
+      } else {
+        // If product doesn't exist, add it to cart
+        currentCart.push({
+          id: product.id,
+          title: product.title,
+          price: product.price,
+          image: product.image,
+          quantity: 1,
+          rating: product.rating
+        });
+      }
+
+      // Save updated cart to sessionStorage
+      saveCartToSessionStorage(currentCart);
+
+      // Update cart count
+      updateCartCount(Object.values(newQuantities).reduce((sum, val) => sum + val, 0));
+
       return newQuantities;
     });
   };
 
   // Increase item quantity
-  const handleIncrease = (productId: number) => {
+  const handleIncrease = (product: Product) => {
     setCartQuantities((prev) => {
-      const newQuantities = { ...prev, [productId]: (prev[productId] || 0) + 1 };
-      updateCartCount(Object.values(newQuantities).reduce((sum, val) => sum + val, 0)); // Update total cart count
+      const newQuantities = { ...prev, [product.id]: (prev[product.id] || 0) + 1 };
+
+      // Update cart in sessionStorage
+      const currentCart = JSON.parse(sessionStorage.getItem('cart') || '[]');
+      const existingItemIndex = currentCart.findIndex((item: any) => item.id === product.id);
+
+      if (existingItemIndex !== -1) {
+        currentCart[existingItemIndex].quantity += 1;
+      }
+
+      saveCartToSessionStorage(currentCart);
+
+      // Update cart count
+      updateCartCount(Object.values(newQuantities).reduce((sum, val) => sum + val, 0));
+
       return newQuantities;
     });
   };
 
   // Decrease item quantity
-  const handleDecrease = (productId: number) => {
+  const handleDecrease = (product: Product) => {
     setCartQuantities((prev) => {
-      const newQuantities = { ...prev, [productId]: Math.max((prev[productId] || 0) - 1, 0) };
-      if (newQuantities[productId] === 0) {
+      const newQuantities = { ...prev, [product.id]: Math.max((prev[product.id] || 0) - 1, 0) };
+
+      if (newQuantities[product.id] === 0) {
         setAddedToCart((prevAdded) => {
           const newAdded = { ...prevAdded };
-          delete newAdded[productId]; // Remove the product from "addedToCart" when the quantity is 0
+          delete newAdded[product.id]; // Remove the product from "addedToCart" when the quantity is 0
           return newAdded;
         });
       }
-      updateCartCount(Object.values(newQuantities).reduce((sum, val) => sum + val, 0)); // Update total cart count
+
+      // Update cart in sessionStorage
+      const currentCart = JSON.parse(sessionStorage.getItem('cart') || '[]');
+      const existingItemIndex = currentCart.findIndex((item: any) => item.id === product.id);
+
+      if (existingItemIndex !== -1) {
+        currentCart[existingItemIndex].quantity = newQuantities[product.id];
+        if (newQuantities[product.id] === 0) {
+          currentCart.splice(existingItemIndex, 1); // Remove item from cart if quantity is 0
+        }
+      }
+
+      saveCartToSessionStorage(currentCart);
+
+      // Update cart count
+      updateCartCount(Object.values(newQuantities).reduce((sum, val) => sum + val, 0));
+
       return newQuantities;
     });
   };
@@ -99,21 +182,21 @@ const FeaturedProducts: React.FC<FeaturedProductsProps> = ({ updateCartCount }) 
                 {!addedToCart[product.id] ? (
                   <button
                     className="add-to-cart-btn"
-                    onClick={() => handleAddToCart(product.id)}
+                    onClick={() => handleAddToCart(product)}
                   >
                     Add to Cart
                   </button>
                 ) : (
                   <div className="cart-quantity-container">
                     <button
-                      onClick={() => handleIncrease(product.id)}
+                      onClick={() => handleIncrease(product)}
                       className="cart-action-btn"
                     >
                       +
                     </button>
                     <span className="cart-quantity">{cartQuantities[product.id] || 0}</span>
                     <button
-                      onClick={() => handleDecrease(product.id)}
+                      onClick={() => handleDecrease(product)}
                       className="cart-action-btn"
                     >
                       -

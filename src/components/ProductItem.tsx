@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface Product {
-    id: string;
+    id: string | number;
     title: string;
     image: string;
     price: number;
@@ -10,42 +10,48 @@ interface Product {
 
 interface ProductItemProps {
     product: Product;
-    onRemove: (id: string) => void;
-    onQuantityChange: (id: string, quantity: number) => void;
+    onRemove: (id: string | number) => void;
+    onQuantityChange: (id: string | number, quantity: number) => void;
 }
 
 const ProductItem: React.FC<ProductItemProps> = ({ product, onRemove, onQuantityChange }) => {
     return (
-        <div className="product-item">
-            <div className="product-image-container">
-                <img src={product.image} alt={product.title} className="product-image" />
-            </div>
-            <div className="product-name">{product.title}</div>
-            <div className="quantity-control">
-                <button 
-                    className="quantity-button" 
-                    onClick={() => onQuantityChange(product.id, Math.max(1, product.quantity - 1))}
-                >
-                    -
-                </button>
-                <input 
-                    type="text" 
-                    value={product.quantity} 
-                    readOnly 
-                    className="quantity-input" 
+        <div className="flex items-center justify-between p-4 border-b">
+            <div className="flex items-center">
+                <img 
+                    src={product.image} 
+                    alt={product.title} 
+                    className="w-16 h-16 object-contain mr-4" 
                 />
+                <div>
+                    <h3 className="font-medium text-gray-800">{product.title}</h3>
+                    <div className="flex items-center mt-2">
+                        <button 
+                            className="w-8 h-8 bg-gray-200 rounded-md flex items-center justify-center"
+                            onClick={() => onQuantityChange(product.id, Math.max(1, product.quantity - 1))}
+                        >
+                            -
+                        </button>
+                        <span className="mx-3">{product.quantity}</span>
+                        <button 
+                            className="w-8 h-8 bg-gray-200 rounded-md flex items-center justify-center"
+                            onClick={() => onQuantityChange(product.id, product.quantity + 1)}
+                        >
+                            +
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div className="flex flex-col items-end">
+                <div className="text-gray-600">${product.price.toFixed(2)}</div>
+                <div className="font-bold">${(product.price * product.quantity).toFixed(2)}</div>
                 <button 
-                    className="quantity-button dark" 
-                    onClick={() => onQuantityChange(product.id, product.quantity + 1)}
+                    className="mt-2 text-red-500 text-xl"
+                    onClick={() => onRemove(product.id)}
                 >
-                    +
+                    ×
                 </button>
             </div>
-            <div className="product-price">${product.price.toFixed(2)}</div>
-            <div className="product-total">${(product.price * product.quantity).toFixed(2)}</div>
-            <button className="remove-button" onClick={() => onRemove(product.id)}>
-                ×
-            </button>
         </div>
     );
 };
