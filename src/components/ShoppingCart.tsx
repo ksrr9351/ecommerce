@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import ProductItem from './ProductItem';
 import './ShoppingCart.css';
 
 interface Product {
