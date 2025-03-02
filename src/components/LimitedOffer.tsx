@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Product } from '../models/Product';
 
 interface LimitedOfferProps {
@@ -11,13 +11,6 @@ const LimitedOffer: React.FC<LimitedOfferProps> = ({ updateCartCount }) => {
   const [cartQuantities, setCartQuantities] = useState<{ [key: number]: number }>({});
   const [addedToCart, setAddedToCart] = useState<{ [key: number]: boolean }>({});
 
-  // Memoize the function to get cart length to avoid unnecessary renders
-  const getCartLength = useCallback(() => {
-    const existingCart = JSON.parse(sessionStorage.getItem('cart') || '[]');
-    return existingCart.length;
-  }, []);
-
-  // Load cart data from sessionStorage on component mount
   useEffect(() => {
     const existingCart = JSON.parse(sessionStorage.getItem('cart') || '[]');
     
